@@ -1,0 +1,4 @@
+**/obj
+**/bin
+*.vscode
+*/input_test.txt
