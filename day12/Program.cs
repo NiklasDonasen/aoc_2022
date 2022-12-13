@@ -11,8 +11,8 @@ namespace aoc_2022_day12
             int res_q1 = 0;
 
             // variables to be filled
-            Position cursor = new Position(0, 0, 0);
-            Position destination = new Position(0, 0, 0);
+            Position cursor = new Position(0, 0);
+            Position destination = new Position(0, 0);
 
             // Initialise grid
             int maxCols = lines[0].Length;
@@ -30,15 +30,13 @@ namespace aoc_2022_day12
                     {
                         cursor.rowPosition = row;
                         cursor.colPosition = col;
-                        // All places you have been before are 100, do not want you to backtrack
-                        grid[row, col] = 100;
+                        grid[row, col] = char.ToUpper(char.Parse("a")) - 64;
                     }
                     else if (currentValue == char.Parse("E"))
                     {
                         destination.rowPosition = row;
                         destination.colPosition = col;
-                        // Destination will also be a "unique" number
-                        grid[row, col] = 500;
+                        grid[row, col] = char.ToUpper(char.Parse("z")) - 64;
                     }
                     else
                     {
@@ -48,37 +46,57 @@ namespace aoc_2022_day12
             }
 
             // Find possible moves for start
-            List<Position> possibleMoves = new List<Position>();
-            possibleMoves = FindPossibleMoves(cursor, destination, grid);
+            List<Position> possibleMoves = FindPossibleMoves(cursor, grid);
+
+            // Du vil alltid gå for samme eller neste bokstav!!!!
+            // Samle alle muligheter??
 
             // Initialise a temp cursor
-            Position tempCursor = new Position(cursor.rowPosition, cursor.colPosition, 0);
+            Position tempCursor = new Position(cursor.rowPosition, cursor.colPosition);
 
             foreach (Position move in possibleMoves)
             {
+                // variable to store positions which the cursor already has visited
+                HashSet<Tuple<int, int>> visited = new HashSet<Tuple<int, int>>();
+                visited.Add(new Tuple<int, int>(cursor.rowPosition, cursor.colPosition));
+
                 // Goal is to get to a field which has a direct neighbour (U, D, R, L) which is 500
-                int counter = 0;
-                tempCursor.rowPosition = move.rowPosition;
-                tempCursor.colPosition = move.colPosition;
-                tempCursor.prevValue = move.prevValue;
-                counter += 1;
+                tempCursor = move;
+                visited.Add(new Tuple<int, int>(tempCursor.rowPosition, tempCursor.colPosition));
+                bool lookingForSolution = true;
 
-                while (tempCursor.prevValue != 500)
+                while (lookingForSolution)
                 {
-                    possibleMoves = FindPossibleMoves(tempCursor, destination, grid);
-                    // Find wanted direction
-                    // Position directionCursorHasToMove = destination - cursor;
-                    // Find best possible move
-                    Position nextMove = FindBestNextMove(possibleMoves, tempCursor, destination);
+                    possibleMoves = FindPossibleMoves(tempCursor, grid);
+                    if (possibleMoves.Count == 0)
+                    {
+                        // Stopping up
+                        lookingForSolution = false;
+                        break;
+                    }
 
-                    // then do it
-                    tempCursor.rowPosition = nextMove.rowPosition;
-                    tempCursor.colPosition = nextMove.colPosition;
-                    tempCursor.prevValue = nextMove.prevValue;
-                    counter += 1;
+                    try
+                    {
+                        Position BestMove = FindBestMove(possibleMoves, destination, tempCursor, visited);
+                        if (BestMove.rowPosition == destination.rowPosition && BestMove.colPosition == destination.colPosition)
+                        {
+                            lookingForSolution = false;
+                        }
+                        else
+                        {
+                            tempCursor = BestMove;
+                            visited.Add(new Tuple<int, int>(tempCursor.rowPosition, tempCursor.colPosition));
+                        }
+                    }
+                    catch
+                    {
+                        // Path stopped without finding destination
+                        lookingForSolution = false;
+
+                    }
                 }
 
-                Console.WriteLine($"This round took {counter} iterations");
+                Console.WriteLine($"This round took {visited.Count} iterations");
 
 
             }
@@ -99,143 +117,71 @@ namespace aoc_2022_day12
         {
             public int rowPosition;
             public int colPosition;
-            public int prevValue = 0;
-
-            public Position(int row, int col, int prev)
+            public Position(int row, int col)
             {
                 rowPosition = row;
                 colPosition = col;
-                prevValue = prev;
             }
             public static Position operator -(Position x, Position y)
             {
-                return new Position(x.rowPosition - y.rowPosition, x.colPosition - y.colPosition, 0);
+                return new Position(x.rowPosition - y.rowPosition, x.colPosition - y.colPosition);
             }
 
         }
 
-        public static Position FindBestNextMove(List<Position> possibleMoves, Position cursor, Position destination)
+        public static Position FindBestMove(List<Position> possibleMoves, Position destination, Position tempCursor, HashSet<Tuple<int, int>> visited)
         {
-            foreach (Position move in possibleMoves)
+            // You want to sort the moves to get the best ones first
+            List<Position> sortedMoves = new List<Position>();
+
+            foreach (Position checkMove in possibleMoves)
             {
-                if (cursor.rowPosition < move.rowPosition && move.rowPosition < destination.rowPosition)
+                // Check that none of the possibleMoves gives you the destination
+                if (checkMove.rowPosition == destination.rowPosition && checkMove.colPosition == destination.colPosition)
                 {
-                    return move;
+                    sortedMoves.Add(checkMove);
+                    break;
                 }
-                else if (cursor.colPosition < move.colPosition && move.colPosition < destination.colPosition)
+
+                // If you have already been there, it is not a valid option
+                if (visited.Contains(new Tuple<int, int>(checkMove.rowPosition, checkMove.colPosition)))
                 {
-                    return move;
+                    continue;
+                }
+
+                // If it brings you closer to destination column-wise: go with it
+                if (Math.Abs(destination.colPosition - checkMove.colPosition) < Math.Abs(destination.colPosition - tempCursor.colPosition))
+                {
+                    sortedMoves.Insert(0, checkMove);
+                }
+                // If it brings you closer to destination row-wise: go with it
+                else if (Math.Abs(destination.rowPosition - checkMove.rowPosition) < Math.Abs(destination.rowPosition - tempCursor.rowPosition))
+                {
+                    sortedMoves.Insert(0, checkMove);
+                }
+                else
+                {
+                    // Does not bring you closer, add at the end
+                    sortedMoves.Add(checkMove);
                 }
             }
-            // if moved directly, then take the first one
-            return possibleMoves[0];
+
+            return sortedMoves[0];
         }
 
-        public static List<Position> FindPossibleMoves(Position cursor, Position destination, int[,] grid)
+        public static List<Position> FindPossibleMoves(Position cursor, int[,] grid)
         {
             List<Position> allowedPositions = new List<Position>();
-            List<Position> lastMove = new List<Position>();
-            List<int> allowedGridValues = new List<int>();
-            // if cursor has not moved yet
-            if (cursor.prevValue == 0)
-            {
-                allowedGridValues = Enumerable.Range(1, 26).ToList();
-            }
-            else
-            {
-                allowedGridValues = new List<int> { cursor.prevValue - 1, cursor.prevValue, cursor.prevValue + 1 };
-            }
 
+            int cursorValue = grid[cursor.rowPosition, cursor.colPosition];
+
+            // check value up
             try
             {
-                if (grid[cursor.rowPosition + 1, cursor.colPosition] == 500)
+                int valueUp = grid[cursor.rowPosition + 1, cursor.colPosition];
+                if (Math.Abs(valueUp - cursorValue) == 1 || Math.Abs(valueUp - cursorValue) == 0)
                 {
-                    Console.WriteLine("Winner winner chicken dinner");
-                    lastMove.Add(new Position(
-                        cursor.rowPosition + 1,
-                        cursor.colPosition,
-                        grid[cursor.rowPosition + 1, cursor.colPosition]
-                    ));
-                    return lastMove;
-                }
-                if (allowedGridValues.Contains(grid[cursor.rowPosition + 1, cursor.colPosition]))
-                {
-                    allowedPositions.Add(new Position(
-                        cursor.rowPosition + 1, cursor.colPosition,
-                        grid[cursor.rowPosition + 1, cursor.colPosition]
-                    ));
-                }
-            }
-            catch
-            {
-                // index out of bound because you are the edge somewhere
-            }
-            try
-            {
-                if (grid[cursor.rowPosition - 1, cursor.colPosition] == 500)
-                {
-                    Console.WriteLine("Winner winner chicken dinner");
-                    lastMove.Add(new Position(
-                        cursor.rowPosition - 1,
-                        cursor.colPosition,
-                        grid[cursor.rowPosition - 1, cursor.colPosition]
-                    ));
-                    return lastMove;
-                }
-                if (allowedGridValues.Contains(grid[cursor.rowPosition - 1, cursor.colPosition]))
-                {
-                    allowedPositions.Add(new Position(
-                        cursor.rowPosition - 1, cursor.colPosition,
-                        grid[cursor.rowPosition - 1, cursor.colPosition]
-                    ));
-                }
-            }
-            catch
-            {
-                // index out of bound because you are the edge somewhere
-            }
-            try
-            {
-                if (grid[cursor.rowPosition, cursor.colPosition + 1] == 500)
-                {
-                    Console.WriteLine("Winner winner chicken dinner");
-                    lastMove.Add(new Position(
-                        cursor.rowPosition,
-                        cursor.colPosition + 1,
-                        grid[cursor.rowPosition, cursor.colPosition + 1]
-                    ));
-                    return lastMove;
-                }
-                if (allowedGridValues.Contains(grid[cursor.rowPosition, cursor.colPosition + 1]))
-                {
-                    allowedPositions.Add(new Position(
-                        cursor.rowPosition, cursor.colPosition + 1,
-                        grid[cursor.rowPosition, cursor.colPosition + 1]
-                    ));
-                }
-            }
-            catch
-            {
-                // index out of bound because you are the edge somewhere
-            }
-            try
-            {
-                if (grid[cursor.rowPosition, cursor.colPosition - 1] == 500)
-                {
-                    Console.WriteLine("Winner winner chicken dinner");
-                    lastMove.Add(new Position(
-                        cursor.rowPosition,
-                        cursor.colPosition - 1,
-                        grid[cursor.rowPosition, cursor.colPosition - 1]
-                    ));
-                    return lastMove;
-                }
-                if (allowedGridValues.Contains(grid[cursor.rowPosition, cursor.colPosition - 1]))
-                {
-                    allowedPositions.Add(new Position(
-                        cursor.rowPosition, cursor.colPosition - 1,
-                        grid[cursor.rowPosition, cursor.colPosition - 1]
-                    ));
+                    allowedPositions.Add(new Position(cursor.rowPosition + 1, cursor.colPosition));
                 }
             }
             catch
@@ -243,7 +189,47 @@ namespace aoc_2022_day12
                 // index out of bound because you are the edge somewhere
             }
 
+            // check value down
+            try
+            {
+                int valueDown = grid[cursor.rowPosition - 1, cursor.colPosition];
+                if (Math.Abs(valueDown - cursorValue) == 1 || Math.Abs(valueDown - cursorValue) == 0)
+                {
+                    allowedPositions.Add(new Position(cursor.rowPosition - 1, cursor.colPosition));
+                }
+            }
+            catch
+            {
+                // index out of bound because you are the edge somewhere
+            }
 
+            // check value left
+            try
+            {
+                int valueLeft = grid[cursor.rowPosition, cursor.colPosition - 1];
+                if (Math.Abs(valueLeft - cursorValue) == 1 || Math.Abs(valueLeft - cursorValue) == 0)
+                {
+                    allowedPositions.Add(new Position(cursor.rowPosition, cursor.colPosition - 1));
+                }
+            }
+            catch
+            {
+                // index out of bound because you are the edge somewhere
+            }
+
+            // check value right
+            try
+            {
+                int valueRight = grid[cursor.rowPosition, cursor.colPosition + 1];
+                if (Math.Abs(valueRight - cursorValue) == 1 || Math.Abs(valueRight - cursorValue) == 0)
+                {
+                    allowedPositions.Add(new Position(cursor.rowPosition, cursor.colPosition + 1));
+                }
+            }
+            catch
+            {
+                // index out of bound because you are the edge somewhere
+            }
 
             return allowedPositions;
         }
