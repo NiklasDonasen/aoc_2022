@@ -8,17 +8,17 @@ namespace aoc_2022_day12
         static void Main()
         {
             string[] lines = System.IO.File.ReadAllLines("input.txt");
-            int res_q1 = 0;
-
-            // variables to be filled
-            Position cursor = new Position(0, 0);
-            Position destination = new Position(0, 0);
 
             // Initialise grid
             int maxCols = lines[0].Length;
             int maxRows = lines.Count();
+            Tuple<int, int> destinationTruth = new Tuple<int, int>(0, 0);
+            int res_q2 = 423;
             // 0,0 is in the top-left-corner
             int[,] grid = new int[maxRows, maxCols];
+
+            // For question 2
+            List<Tuple<int, int>> possibleStartPoints = new List<Tuple<int, int>>();
 
             // Populate grid
             for (int row = 0; row < maxRows; row++)
@@ -28,15 +28,19 @@ namespace aoc_2022_day12
                     char currentValue = lines[row][col];
                     if (currentValue == char.Parse("S"))
                     {
-                        cursor.rowPosition = row;
-                        cursor.colPosition = col;
+                        // Tuple<int, int> cursor = new Tuple<int, int>(row, col);
                         grid[row, col] = char.ToUpper(char.Parse("a")) - 64;
+                        possibleStartPoints.Add(new Tuple<int, int>(row, col));
                     }
                     else if (currentValue == char.Parse("E"))
                     {
-                        destination.rowPosition = row;
-                        destination.colPosition = col;
+                        destinationTruth = new Tuple<int, int>(row, col);
                         grid[row, col] = char.ToUpper(char.Parse("z")) - 64;
+                    }
+                    else if (currentValue == char.Parse("a"))
+                    {
+                        grid[row, col] = char.ToUpper(currentValue) - 64;
+                        possibleStartPoints.Add(new Tuple<int, int>(row, col));
                     }
                     else
                     {
@@ -45,143 +49,92 @@ namespace aoc_2022_day12
                 }
             }
 
-            // Find possible moves for start
-            List<Position> possibleMoves = FindPossibleMoves(cursor, grid);
 
-            // Du vil alltid gå for samme eller neste bokstav!!!!
-            // Samle alle muligheter??
-
-            // Initialise a temp cursor
-            Position tempCursor = new Position(cursor.rowPosition, cursor.colPosition);
-
-            foreach (Position move in possibleMoves)
+            foreach (Tuple<int, int> cursor in possibleStartPoints)
             {
-                // variable to store positions which the cursor already has visited
+                Tuple<int, int> destination = new Tuple<int, int>(destinationTruth.Item1, destinationTruth.Item2);
+                // Walk through the possibility room
                 HashSet<Tuple<int, int>> visited = new HashSet<Tuple<int, int>>();
-                visited.Add(new Tuple<int, int>(cursor.rowPosition, cursor.colPosition));
 
-                // Goal is to get to a field which has a direct neighbour (U, D, R, L) which is 500
-                tempCursor = move;
-                visited.Add(new Tuple<int, int>(tempCursor.rowPosition, tempCursor.colPosition));
-                bool lookingForSolution = true;
+                // Storing information how you got into each node
+                Dictionary<Tuple<int, int>, Tuple<int, int>> previous = new Dictionary<Tuple<int, int>, Tuple<int, int>>();
 
-                while (lookingForSolution)
+                Queue<Tuple<int, int>> queue = new Queue<Tuple<int, int>>();
+                queue.Enqueue(cursor);
+
+                Tuple<int, int> prevPos = new Tuple<int, int>(5000, 5000);
+                while (queue.Count > 0)
                 {
-                    possibleMoves = FindPossibleMoves(tempCursor, grid);
-                    if (possibleMoves.Count == 0)
+                    Tuple<int, int> vertex = queue.Dequeue();
+
+                    if (visited.Contains(vertex))
                     {
-                        // Stopping up
-                        lookingForSolution = false;
+                        continue;
+                    }
+                    visited.Add(vertex);
+
+
+                    List<Tuple<int, int>> possibleMoves = FindPossibleMoves(vertex, prevPos, grid);
+
+                    foreach (Tuple<int, int> neighbor in possibleMoves)
+                    {
+                        if (previous.ContainsKey(neighbor))
+                        {
+                            continue;
+                        }
+                        previous[neighbor] = vertex;
+                        queue.Enqueue(neighbor);
+                    }
+                    prevPos = new Tuple<int, int>(vertex.Item1, vertex.Item2);
+
+                }
+
+                List<Tuple<int, int>> path = new List<Tuple<int, int>>();
+                while (!cursor.Equals(destination))
+                {
+                    if (path.Count > 423)
+                    {
                         break;
                     }
-
+                    path.Add(destination);
                     try
                     {
-                        Position BestMove = FindBestMove(possibleMoves, destination, tempCursor, visited);
-                        if (BestMove.rowPosition == destination.rowPosition && BestMove.colPosition == destination.colPosition)
-                        {
-                            lookingForSolution = false;
-                        }
-                        else
-                        {
-                            tempCursor = BestMove;
-                            visited.Add(new Tuple<int, int>(tempCursor.rowPosition, tempCursor.colPosition));
-                        }
+                        destination = previous[destination];
                     }
                     catch
                     {
-                        // Path stopped without finding destination
-                        lookingForSolution = false;
-
+                        continue;
                     }
+                };
+
+                path.Reverse();
+
+                Console.WriteLine($"Start {cursor.Item1}, {cursor.Item2} took {path.Count}x steps to destination");
+                if (path.Count < res_q2)
+                {
+                    res_q2 = path.Count;
                 }
 
-                Console.WriteLine($"This round took {visited.Count} iterations");
-
-
             }
-
-
-
-
-            // We have to assign the previous val to cursor.prev
-
-            // places which are visited more than once are marked as unaccessible and then we iterate several times over the map
-            // you could also keep track of the last position where you had a choice and then go there
-
-
-            Console.WriteLine($"Answer for q1 is {res_q1}");
+            Console.WriteLine($"Answer for q2 is {res_q2}");
         }
 
-        public class Position
+        public static List<Tuple<int, int>> FindPossibleMoves(Tuple<int, int> cursor, Tuple<int, int> prevPos, int[,] grid)
         {
-            public int rowPosition;
-            public int colPosition;
-            public Position(int row, int col)
-            {
-                rowPosition = row;
-                colPosition = col;
-            }
-            public static Position operator -(Position x, Position y)
-            {
-                return new Position(x.rowPosition - y.rowPosition, x.colPosition - y.colPosition);
-            }
+            List<Tuple<int, int>> allowedPositions = new List<Tuple<int, int>>();
 
-        }
-
-        public static Position FindBestMove(List<Position> possibleMoves, Position destination, Position tempCursor, HashSet<Tuple<int, int>> visited)
-        {
-            // You want to sort the moves to get the best ones first
-            List<Position> sortedMoves = new List<Position>();
-
-            foreach (Position checkMove in possibleMoves)
-            {
-                // Check that none of the possibleMoves gives you the destination
-                if (checkMove.rowPosition == destination.rowPosition && checkMove.colPosition == destination.colPosition)
-                {
-                    sortedMoves.Add(checkMove);
-                    break;
-                }
-
-                // If you have already been there, it is not a valid option
-                if (visited.Contains(new Tuple<int, int>(checkMove.rowPosition, checkMove.colPosition)))
-                {
-                    continue;
-                }
-
-                // If it brings you closer to destination column-wise: go with it
-                if (Math.Abs(destination.colPosition - checkMove.colPosition) < Math.Abs(destination.colPosition - tempCursor.colPosition))
-                {
-                    sortedMoves.Insert(0, checkMove);
-                }
-                // If it brings you closer to destination row-wise: go with it
-                else if (Math.Abs(destination.rowPosition - checkMove.rowPosition) < Math.Abs(destination.rowPosition - tempCursor.rowPosition))
-                {
-                    sortedMoves.Insert(0, checkMove);
-                }
-                else
-                {
-                    // Does not bring you closer, add at the end
-                    sortedMoves.Add(checkMove);
-                }
-            }
-
-            return sortedMoves[0];
-        }
-
-        public static List<Position> FindPossibleMoves(Position cursor, int[,] grid)
-        {
-            List<Position> allowedPositions = new List<Position>();
-
-            int cursorValue = grid[cursor.rowPosition, cursor.colPosition];
+            int cursorValue = grid[cursor.Item1, cursor.Item2];
 
             // check value up
             try
             {
-                int valueUp = grid[cursor.rowPosition + 1, cursor.colPosition];
-                if (Math.Abs(valueUp - cursorValue) == 1 || Math.Abs(valueUp - cursorValue) == 0)
+                if (cursor.Item1 + 1 != prevPos.Item1 || cursor.Item2 != prevPos.Item2)
                 {
-                    allowedPositions.Add(new Position(cursor.rowPosition + 1, cursor.colPosition));
+                    int valueUp = grid[cursor.Item1 + 1, cursor.Item2];
+                    if (valueUp - cursorValue <= 1)
+                    {
+                        allowedPositions.Add(new Tuple<int, int>(cursor.Item1 + 1, cursor.Item2));
+                    }
                 }
             }
             catch
@@ -192,10 +145,13 @@ namespace aoc_2022_day12
             // check value down
             try
             {
-                int valueDown = grid[cursor.rowPosition - 1, cursor.colPosition];
-                if (Math.Abs(valueDown - cursorValue) == 1 || Math.Abs(valueDown - cursorValue) == 0)
+                if (cursor.Item1 - 1 != prevPos.Item1 || cursor.Item2 != prevPos.Item2)
                 {
-                    allowedPositions.Add(new Position(cursor.rowPosition - 1, cursor.colPosition));
+                    int valueDown = grid[cursor.Item1 - 1, cursor.Item2];
+                    if (valueDown - cursorValue <= 1)
+                    {
+                        allowedPositions.Add(new Tuple<int, int>(cursor.Item1 - 1, cursor.Item2));
+                    }
                 }
             }
             catch
@@ -206,10 +162,13 @@ namespace aoc_2022_day12
             // check value left
             try
             {
-                int valueLeft = grid[cursor.rowPosition, cursor.colPosition - 1];
-                if (Math.Abs(valueLeft - cursorValue) == 1 || Math.Abs(valueLeft - cursorValue) == 0)
+                if (cursor.Item1 != prevPos.Item1 || cursor.Item2 - 1 != prevPos.Item2)
                 {
-                    allowedPositions.Add(new Position(cursor.rowPosition, cursor.colPosition - 1));
+                    int valueLeft = grid[cursor.Item1, cursor.Item2 - 1];
+                    if (valueLeft - cursorValue <= 1)
+                    {
+                        allowedPositions.Add(new Tuple<int, int>(cursor.Item1, cursor.Item2 - 1));
+                    }
                 }
             }
             catch
@@ -220,10 +179,13 @@ namespace aoc_2022_day12
             // check value right
             try
             {
-                int valueRight = grid[cursor.rowPosition, cursor.colPosition + 1];
-                if (Math.Abs(valueRight - cursorValue) == 1 || Math.Abs(valueRight - cursorValue) == 0)
+                if (cursor.Item1 == prevPos.Item1 || cursor.Item2 + 1 != prevPos.Item2)
                 {
-                    allowedPositions.Add(new Position(cursor.rowPosition, cursor.colPosition + 1));
+                    int valueRight = grid[cursor.Item1, cursor.Item2 + 1];
+                    if (valueRight - cursorValue <= 1)
+                    {
+                        allowedPositions.Add(new Tuple<int, int>(cursor.Item1, cursor.Item2 + 1));
+                    }
                 }
             }
             catch
